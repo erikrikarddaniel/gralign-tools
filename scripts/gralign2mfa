@@ -1,0 +1,147 @@
+#!/usr/bin/env ruby
+#
+# = NAME
+#
+# gralign2mfa
+#
+# = SYNOPSIS
+#
+# See below, in opt parser block.
+#
+# = USAGE
+#
+# See below, in opt parser block.
+#
+# = AUTHOR
+#
+# daniel.lundin@scilifelab.se
+
+$VERBOSE = true
+
+require 'optparse'
+
+@options = {}
+opt_parser = OptionParser.new do |opts|
+  opts.banner = <<BANNER
+gralign2mfa: Translates a GRAlign alignment (pairs of numeric coordinates) to
+  a multiple fasta alignment.
+    gralign2mfa [options] file0..filen
+BANNER
+
+  opts.on "-h", "--help", "This info"  do 
+    puts opts
+    exit 0
+  end
+
+  opts.on "--seqnames=LIST", "Comma separated list of sequence names to fetch from faa files, characters until first | suffices" do |v|
+    @options[:seqnames] = v.split(",")
+  end
+
+  opts.on "-v", "--verbose", "Be verbose"  do |v| 
+    @options[:verbose] = v 
+  end
+end
+begin
+  opt_parser.parse!
+  mandatory = [ :seqnames ]	# Fill in with mandatory option names (i.e. starting with :)
+  missing = mandatory.select { |param| @options[param].nil? }
+  unless missing.empty?
+    warn "Missing options: #{missing.map { |m| "--#{m}" }.join(", ")}"
+    warn opt_parser
+    exit 1
+  end
+rescue OptionParser::InvalidOption, OptionParser::MissingArgument
+  warn "#{$!}"
+  warn opt_parser
+  exit 1
+end
+
+# Read input files
+begin
+  @alicoords = [ ]
+  file = ARGV.shift
+  warn "#{__FILE__}:#{__LINE__}: Reading alignment file #{file}" if @options[:verbose]
+  File.open(file).each do |line|
+    @alicoords << line.chomp.split(/\s+/).map { |n| n.to_i }
+  end
+rescue
+  warn "Failed to parse alignment file (#{file}): #{$!}, backtrace:\n\t#{$!.backtrace.join("\n\t")}"
+  exit 2
+end
+
+@sequences = [ ]
+
+begin
+  ARGV.each do |file|
+    warn "#{__FILE__}:#{__LINE__}: Reading fasta file #{file}" if @options[:verbose]
+    faa = {}
+    name = nil
+    seq = nil
+    File.open(file).each do |line|
+      line.chomp!
+      if line =~ /^>(.*)/
+	n = $1
+	if name
+	  faa[name] = seq
+	end
+	name = n
+	seq = ''
+      else
+	seq += line
+      end
+    end
+    faa[name] = seq
+
+    # Find alternative names
+    faa.keys.each do |name|
+      if nn = name.split('|')
+	faa[nn[0]] = faa[name]
+	faa[nn[0].downcase.gsub(':', '')] = faa[name]
+      end
+    end
+
+    # Try to find one or more of our sequence names in the current fasta file
+    @options[:seqnames].each_with_index do |name, i|
+      if faa[name]
+	@sequences[i] = faa[name]
+      elsif faa[name.downcase]
+	@sequences[i] = faa[name.downcase]
+      end
+    end
+  end
+rescue
+  warn "Failed to parse fasta file (#{file}): #{$!}, backtrace:\n\t#{$!.backtrace.join("\n\t")}"
+  exit 2
+end
+
+# Check that we have two sequences
+unless @sequences.length == 2
+  warn "Didn't find both sequence names (#{@options[:seqnames]}) in fasta files (#{ARGV})"
+  exit 2
+end
+
+# Construct the alignment
+@alignment = [ '', '' ]
+
+current = [ 0, 0 ]
+@alicoords.each_with_index do |coords|
+  if coords[0] == current[0] + 1 and not coords[1] == current[1] + 1
+    l = coords[1] - current[1] - 1
+    @alignment[0] += '-' * l
+    @alignment[1] += @sequences[1][current[1], l]
+  elsif coords[1] == current[1] + 1 and not coords[0] == current[0] + 1
+    l = coords[0] - current[0] - 1
+    @alignment[1] += '-' * l
+    @alignment[0] += @sequences[0][current[0], l]
+  end
+  @alignment[0] += @sequences[0][coords[0] - 1]
+  @alignment[1] += @sequences[1][coords[1] - 1]
+  current = coords
+end
+
+puts <<FASTAOUT
+>#{@options[:seqnames][0]}
+#{@alignment[0]}
+>#{@options[:seqnames][1]}
+#{@alignment[1]}
+FASTAOUT

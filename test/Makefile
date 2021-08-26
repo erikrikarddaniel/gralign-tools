@@ -8,12 +8,14 @@ GREP_CHECK = pattern=`cat $@.expect`; if [ `grep "$$pattern" $@.out | wc -l` -gt
 
 XML_CHECK =
 
-all: grasim2matrix
+all: grasim2matrix gralign2mfa
 
 clean:
 	@rm -rf *.out *.tmp err 
 
 grasim2matrix: grasim2matrix.00 grasim2matrix.01
+
+gralign2mfa: gralign2mfa.00 gralign2mfa.01
 
 grasim2matrix.00:
 	@../scripts/grasim2matrix --transform=minus --transformval=1 $@.sim > $@.out
@@ -21,4 +23,12 @@ grasim2matrix.00:
 
 grasim2matrix.01:
 	@../scripts/grasim2matrix --transform=inverse $@.sim > $@.out
+	@$(CHECK)
+
+gralign2mfa.00:
+	@../scripts/gralign2mfa --seqnames=1l1lA,1xjjA $@.ali $@.0.faa $@.1.faa > $@.out
+	@$(CHECK)
+
+gralign2mfa.01:
+	@../scripts/gralign2mfa --seqnames=1h16A,1h7bA $@.ali $@.0.faa $@.1.faa > $@.out
 	@$(CHECK)
