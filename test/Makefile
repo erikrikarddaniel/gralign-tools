@@ -13,7 +13,7 @@ all: grasim2matrix gralign2mfa
 clean:
 	@rm -rf *.out *.tmp err 
 
-grasim2matrix: grasim2matrix.00 grasim2matrix.01
+grasim2matrix: grasim2matrix.00 grasim2matrix.01 grasim2matrix.02
 
 gralign2mfa: gralign2mfa.00 gralign2mfa.01
 
@@ -23,6 +23,10 @@ grasim2matrix.00:
 
 grasim2matrix.01:
 	@../scripts/grasim2matrix --transform=inverse $@.sim > $@.out
+	@$(CHECK)
+
+grasim2matrix.02:
+	@../scripts/grasim2matrix --transform=minus --transformval=1 $@.sim > $@.out
 	@$(CHECK)
 
 gralign2mfa.00:

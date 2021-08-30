@@ -197,7 +197,7 @@ begin
   end
   io.each do |line|
     line.chomp!
-    next if line =~ /\tEC$/
+    next if line =~ /^Query_1\tQuery_2/
     fields = line.split("\t")
     @order << fields[0] unless @order[-1] == fields[0]
     @results[fields[0]] ||= { }
